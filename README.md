@@ -201,5 +201,8 @@ Edit `config.lua`:
 
 **Author:** \_G\[S\]cripts  
 **Version:** 1.0.0  
+**License:** [PolyForm Noncommercial License 1.0.0](LICENSE)
+
+Noncommercial use only. See [LICENSE](LICENSE) for full terms.
 
 See [examples.md](examples.md) for API samples, bone targeting, multi-options, events, and cleanup patterns.
