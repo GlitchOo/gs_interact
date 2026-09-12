@@ -246,7 +246,7 @@ local function FireOption(option, data)
     end
 end
 
----Fire mash decay failure handlers (`onFail` -> `failEvent` -> `failServerEvent`).
+---Fire failure handlers (`onFail` -> `failEvent` -> `failServerEvent`).
 ---@param option table
 ---@param data table
 local function FireOptionFail(option, data)
@@ -284,17 +284,6 @@ local function FireOptionStart(option, data)
     end
 end
 
-local function ClearOptionPrompts()
-    for i = 1, #ActivePrompts do
-        local p = ActivePrompts[i]
-        if p.handle then
-            PromptDelete(p.handle)
-        end
-    end
-    ActivePrompts = {}
-    ActivePromptKey = nil
-end
-
 ---@param option table
 ---@return boolean
 local function OptionHasFailHandler(option)
@@ -311,8 +300,42 @@ local function OptionHasStartHandler(option)
         or type(option.startServerEvent) == "string"
 end
 
+---Fire onFail for any in-progress attempts before prompts are torn down (look away, etc.).
+---@param target? table
+local function FailStartedSlots(target)
+    for i = 1, #ActivePrompts do
+        local slot = ActivePrompts[i]
+        if slot.started and OptionHasFailHandler(slot.option) then
+            local data
+            if target then
+                data = BuildSelectData(target, slot.option, target.dist)
+            else
+                data = {
+                    optionName = slot.option.name,
+                    name = slot.option.name,
+                    label = slot.option.label,
+                }
+            end
+            data.failed = true
+            FireOptionFail(slot.option, data)
+            slot.started = false
+        end
+    end
+end
+
+local function ClearOptionPrompts()
+    for i = 1, #ActivePrompts do
+        local p = ActivePrompts[i]
+        if p.handle then
+            PromptDelete(p.handle)
+        end
+    end
+    ActivePrompts = {}
+    ActivePromptKey = nil
+end
+
 ---Detect the rising edge of a press / hold / mash attempt and fire onStart once.
----@param slot { handle: number, mode: string, option: table, started?: boolean, visible?: boolean }
+---@param slot { handle: number, mode: string, option: table, started?: boolean, visible?: boolean, mashStart?: number }
 ---@param target table
 local function TryFireOptionStart(slot, target)
     if not slot.visible then
@@ -329,8 +352,19 @@ local function TryFireOptionStart(slot, target)
         if slot.started then
             return
         end
+    elseif slot.mode == "mash" then
+        -- Mash prompts do not reliably report JustPressed; progress is the attempt signal
+        local progress = PromptGetMashModeProgress(slot.handle) or 0.0
+        local baseline = slot.mashStart or 0.0
+        if progress <= baseline then
+            slot.started = false
+            return
+        end
+        if slot.started then
+            return
+        end
     else
-        -- mash / standard: first JustPressed of this attempt
+        -- standard: first JustPressed of this attempt
         if slot.started or not PromptIsJustPressed(slot.handle) then
             return
         end
@@ -344,6 +378,31 @@ local function TryFireOptionStart(slot, target)
     slot.started = true
     local data = BuildSelectData(target, slot.option, target.dist)
     FireOptionStart(slot.option, data)
+end
+
+---Fire onFail when a hold was started then released before completion.
+---@param slot { handle: number, mode: string, option: table }
+---@param target table
+---@param wasStarted boolean
+---@return boolean
+local function TryFireHoldCancel(slot, target, wasStarted)
+    if not wasStarted or slot.mode ~= "hold" then
+        return false
+    end
+    if PromptIsHoldModeRunning(slot.handle) then
+        return false
+    end
+    if PromptHasHoldModeCompleted(slot.handle) then
+        return false
+    end
+    if not OptionHasFailHandler(slot.option) then
+        return false
+    end
+
+    local data = BuildSelectData(target, slot.option, target.dist)
+    data.failed = true
+    FireOptionFail(slot.option, data)
+    return true
 end
 
 ---Resolve per-option UI prompt mode. hold wins over mash if both are set.
@@ -545,6 +604,7 @@ local function SyncOptionPrompts(options, meta, target)
             label = labelText,
             mode = option.mode,
             mashCanFail = option.mashCanFail,
+            mashStart = option.mashStart or 0.0,
             visible = allowed,
             started = false,
         }
@@ -1016,6 +1076,7 @@ CreateThread(function()
                 for i = 1, #ActivePrompts do
                     local slot = ActivePrompts[i]
                     if slot.visible then
+                        local wasStarted = slot.started
                         TryFireOptionStart(slot, bestPoint)
 
                         if IsOptionPromptCompleted(slot) then
@@ -1034,17 +1095,26 @@ CreateThread(function()
                             Wait(500)
                             break
                         end
+
+                        TryFireHoldCancel(slot, bestPoint, wasStarted)
                     else
+                        if slot.started and OptionHasFailHandler(slot.option) then
+                            local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
+                            data.failed = true
+                            FireOptionFail(slot.option, data)
+                        end
                         slot.started = false
                     end
                 end
             else
                 if ActivePromptKey then
+                    FailStartedSlots(bestPoint)
                     ClearOptionPrompts()
                 end
             end
         else
             if ActivePromptKey then
+                FailStartedSlots(nil)
                 ClearOptionPrompts()
             end
         end

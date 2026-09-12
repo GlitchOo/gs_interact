@@ -407,7 +407,7 @@ exports.gs_interact:addPoint({
 - `mash = <count>` or `mash = true`
 - `mashDecay = <number>` optional on mash options; progress decreases while not mashing (try `0.02` to `0.1`)
 - `onStart` / `startEvent` / `startServerEvent` run once when the attempt begins (hold starts, or first mash / press)
-- `onFail` / `failEvent` / `failServerEvent` with `mashDecay` enables can-fail mash and runs when the bar empties (`data.failed = true`)
+- `onFail` / `failEvent` / `failServerEvent` with `mashDecay` enables can-fail mash and runs when the bar empties (`data.failed = true`). For `hold`, the same handlers run if the player releases early or looks away after `onStart`.
 - `mashStart` optional `0.0`-`1.0` fill when can-fail is active
 - If both `hold` and `mash` are set on one option, `hold` wins
 - Mix modes freely across options in the same group

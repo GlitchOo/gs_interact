@@ -152,9 +152,9 @@ Each option:
 | `onStart` | `fun?` | `(data) -> void` when the player begins press / hold / mash |
 | `startEvent` | `string?` | `TriggerEvent(startEvent, data)` when interaction begins |
 | `startServerEvent` | `string?` | `TriggerServerEvent(startServerEvent, data)` when interaction begins |
-| `onFail` | `fun?` | `(data) -> void` mash decay failure (`mash` + `mashDecay` required) |
-| `failEvent` | `string?` | `TriggerEvent(failEvent, data)` on mash decay failure |
-| `failServerEvent` | `string?` | `TriggerServerEvent(failServerEvent, data)` on mash decay failure |
+| `onFail` | `fun?` | `(data) -> void` mash decay failure, or hold released / interrupted after `onStart` |
+| `failEvent` | `string?` | `TriggerEvent(failEvent, data)` on fail / hold cancel |
+| `failServerEvent` | `string?` | `TriggerServerEvent(failServerEvent, data)` on fail / hold cancel |
 | `event` | `string?` | `TriggerEvent(event, data)` |
 | `serverEvent` | `string?` | `TriggerServerEvent(serverEvent, data)` |
 | `export` | `string?` | `"resource.exportName"` called with `data` |
@@ -167,6 +167,8 @@ Fail priority: `onFail` -> `failEvent` -> `failServerEvent`.
 Prompt mode: omit both for a normal press (`standard`). Set `hold` or `mash` per option. If both are set, `hold` wins. Optional `mashDecay` drains progress while not mashing. Add `onFail` (or fail events) with `mashDecay` to enable can-fail mash and receive a decay failure callback (`data.failed = true`).
 
 `onStart` fires once when the player begins an attempt: hold mode when hold starts running, mash / standard on the first control press. Releasing a hold and pressing again fires `onStart` again.
+
+`onFail` also runs for hold options when the player releases early or looks away after `onStart` (`data.failed = true`). The hold prompt stays active so they can retry.
 
 ### Select payload (`data`)
 
