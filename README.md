@@ -11,7 +11,8 @@ Look-at world interactions for RedM. Register points, models, peds, objects, and
 ## Features
 
 - **Look-at aiming** – center-screen aim with world sprites that highlight when targeted
-- **Multi-option prompts** – one target can expose several actions at once
+- **Distance-scaled sprites** – markers grow from far size at `distance` to full size at `interactDistance`
+- **Grouped UI prompts** – all valid options share one native prompt group (single page)
 - **Points, models, and entities** – fixed coords, model hashes, or specific entity handles
 - **Peds, objects, and wagons** – typed helpers so scans stay in the right entity bucket
 - **Bone targeting** – attach sprites / aim points to named bones (saddle, hand, boot, etc.)
@@ -69,11 +70,14 @@ When your resource stops, call `remove` for ids you own, or rely on automatic cl
 
 1. Nearby registrations within `distance` are collected on a throttled scan.
 2. On-screen targets draw a quiet sprite at their world (or bone) position.
-3. The target closest to screen center inside `Config.AimScreenRadius` becomes the aimed target.
-4. If you are within `interactDistance` (or a per-option `distance`) and `canInteract` passes, prompts appear.
-5. Pressing the option control fires that option’s handler.
+3. Sprite size lerps by player distance: `Config.SpriteScaleFar` at show range (`distance`), `Config.SpriteScaleNear` at interact range (`interactDistance`).
+4. The target closest to screen center inside `Config.AimScreenRadius` becomes the aimed target.
+5. If you are within `interactDistance` (or a per-option `distance`) and `canInteract` passes, a native UI prompt group appears with every valid option on one page (`Config.PromptGroupName`).
+6. Pressing an option’s control fires that option’s handler.
 
 Mount / vehicle: set `requireOnFoot = true` to hide the target while the player is not on foot.
+
+When a target has several options, give each a distinct `control`. Shared controls still work, but only one prompt can win that frame.
 
 ---
 
@@ -107,8 +111,8 @@ Common fields for all target types:
 |-------|------|-------------|
 | `id` | `string` | **Required.** Unique registration id |
 | `options` | `table` | **Required.** One option table, or a list of options |
-| `distance` | `number?` | Show sprite within this range (default `Config.DefaultDistance`) |
-| `interactDistance` | `number?` | Default prompt range (default `Config.DefaultInteractDistance`) |
+| `distance` | `number?` | Show sprite within this range; also far end of sprite scale (default `Config.DefaultDistance`) |
+| `interactDistance` | `number?` | Default prompt range; also near end of sprite scale (default `Config.DefaultInteractDistance`) |
 | `requireOnFoot` | `boolean?` | Hide while mounted / in a wagon |
 | `enabled` | `boolean?` | Defaults to `true` |
 | `meta` | `table?` | Static data merged into `onSelect` payload / prompt label |
@@ -136,7 +140,7 @@ Each option:
 |-------|------|-------------|
 | `name` | `string` | Stable option id (used by `removeOption`) |
 | `label` | `string` | Prompt text (can be overridden by `meta.name` / `meta.label`) |
-| `control` | `number?` | Control hash (default `Config.InteractKey`, Space) |
+| `control` | `number?` | Control hash (default `Config.InteractKey`, Space). Use distinct keys for multi-option targets |
 | `distance` | `number?` | Override interact distance for this option only |
 | `canInteract` | `fun?` | `(entity, distance, coords, name) -> boolean` |
 | `onSelect` | `fun?` | `(data) -> void` preferred client handler |
@@ -179,6 +183,8 @@ Edit `config.lua`:
 | `CenterDot` / `CenterDotAimed` | tables | Quiet / aimed center styles |
 | `SpriteDict` / `SpriteName` | lobby circle | Default world sprite |
 | `SpriteQuiet` / `SpriteAimed` | tables | Default marker styles |
+| `SpriteScaleNear` | `1.0` | Sprite size multiplier at / inside interact range |
+| `SpriteScaleFar` | `0.2` | Sprite size multiplier at / beyond show range |
 | `DefaultDistance` | `5.0` | Show range fallback |
 | `DefaultInteractDistance` | `2.0` | Prompt range fallback |
 | `ScanInterval` | `500` | Nearby entity / point scan ms |
@@ -205,4 +211,4 @@ Edit `config.lua`:
 
 Noncommercial use only. See [LICENSE](LICENSE) for full terms.
 
-See [examples.md](examples.md) for API samples, bone targeting, multi-options, events, and cleanup patterns.
+See [examples.md](examples.md) for API samples, bone targeting, grouped multi-option prompts, distance-scaled sprites, events, and cleanup patterns.

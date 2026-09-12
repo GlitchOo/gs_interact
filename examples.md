@@ -288,7 +288,13 @@ Wagon bones work the same with `addWagonEntity` (`bodyshell`, `boot`, `seat_psid
 
 ## 9. Multiple options and canInteract
 
+Valid options share one native UI prompt group (single page under `Config.PromptGroupName`). Assign a distinct `control` per option so each prompt can fire independently.
+
 ```lua
+-- Example control hashes (pick what fits your resource)
+local KEY_G = 0x760A9C6F
+local KEY_R = 0xE30CD707
+
 exports.gs_interact:addPoint({
     id = 'example:stash',
     coords = vector3(100.0, 200.0, 50.0),
@@ -298,6 +304,7 @@ exports.gs_interact:addPoint({
         {
             name = 'open',
             label = 'Open stash',
+            control = KEY_G,
             canInteract = function(_entity, _dist, _coords, _name)
                 return LocalPlayer.state.isLoggedIn == true
             end,
@@ -308,6 +315,7 @@ exports.gs_interact:addPoint({
         {
             name = 'lock',
             label = 'Lock',
+            control = KEY_R,
             distance = 1.2, -- tighter than registration interactDistance
             canInteract = function()
                 return LocalPlayer.state.isOwner == true
@@ -322,6 +330,8 @@ exports.gs_interact:addPoint({
 
 `canInteract` signature: `(entity, distance, coords, optionName) -> boolean`.  
 Errors inside `canInteract` are treated as `false`.
+
+Omitting `control` uses `Config.InteractKey` (Space). That is fine for a single option; with several options, prefer unique controls.
 
 ---
 
@@ -435,6 +445,8 @@ Per registration (or per option for aimed dict/name):
 exports.gs_interact:addPoint({
     id = 'example:custom_sprite',
     coords = vector3(0.0, 0.0, 0.0),
+    distance = 8.0,
+    interactDistance = 2.0,
     SpriteDict = 'mp_lobby_textures',
     SpriteName = 'circle',
     SpriteQuiet = { w = 0.007, h = 0.012, r = 255, g = 255, b = 255, a = 90 },
@@ -453,6 +465,16 @@ exports.gs_interact:addPoint({
 ```
 
 Globals live in `config.lua` (`SpriteDict`, `SpriteQuiet`, `CenterDot`, …).
+
+### Distance scaling
+
+World sprite width/height are multiplied by a distance factor:
+
+- At / inside `interactDistance`: `Config.SpriteScaleNear` (default `1.0`)
+- At / beyond `distance`: `Config.SpriteScaleFar` (default `0.2`)
+- Between those ranges: linear lerp
+
+Per-target `SpriteQuiet` / `SpriteAimed` `w` / `h` are the base sizes before that scale is applied. You do not set scale on the registration itself.
 
 ---
 

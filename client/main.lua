@@ -33,6 +33,27 @@ local function Dist2Sq(a, b)
     return dx * dx + dy * dy
 end
 
+---Scale factor for world sprites by player distance (full size near, smaller far).
+---@param dist number
+---@param nearDist number
+---@param farDist number
+---@return number
+local function GetSpriteDistanceScale(dist, nearDist, farDist)
+    local nearScale = Config.SpriteScaleNear or 1.0
+    local farScale = Config.SpriteScaleFar or 0.35
+    if farDist <= nearDist then
+        return nearScale
+    end
+    if dist <= nearDist then
+        return nearScale
+    end
+    if dist >= farDist then
+        return farScale
+    end
+    local t = (dist - nearDist) / (farDist - nearDist)
+    return nearScale + ((farScale - nearScale) * t)
+end
+
 local function RefreshPlayer()
     local ped = PlayerPedId()
     Player.ped = ped
@@ -272,7 +293,8 @@ local function SyncOptionPrompts(options, meta)
         PromptSetEnabled(handle, true)
         PromptSetVisible(handle, true)
         PromptSetStandardMode(handle, true)
-        PromptSetGroup(handle, PromptGroup)
+        -- tabIndex 0 keeps all options on one prompt page
+        PromptSetGroup(handle, PromptGroup, 0)
         PromptRegisterEnd(handle)
         ActivePrompts[#ActivePrompts + 1] = {
             handle = handle,
@@ -659,13 +681,16 @@ CreateThread(function()
                     local dict, name, quiet, aimedStyle = ResolveSprites(point.entry, isAimed and aimedOption or nil)
                     if EnsureDict(dict) then
                         local style = isAimed and aimedStyle or quiet
+                        local nearDist = point.entry.interactDistance or Config.DefaultInteractDistance
+                        local farDist = point.entry.distance or Config.DefaultDistance
+                        local scale = GetSpriteDistanceScale(point.dist or farDist, nearDist, farDist)
                         DrawSprite(
                             dict,
                             name,
                             screen.x,
                             screen.y,
-                            style.w,
-                            style.h,
+                            style.w * scale,
+                            style.h * scale,
                             0.0,
                             style.r or 255,
                             style.g or 255,
@@ -703,7 +728,8 @@ CreateThread(function()
 
             if canInteract then
                 SyncOptionPrompts(validOptions, bestPoint.meta)
-                PromptSetActiveGroupThisFrame(PromptGroup, GetPromptGroupLabel())
+                -- tabAmount 1 = single page with all options
+                PromptSetActiveGroupThisFrame(PromptGroup, GetPromptGroupLabel(), 1, 0, 0, 0)
 
                 for i = 1, #ActivePrompts do
                     local slot = ActivePrompts[i]

@@ -18,6 +18,10 @@ Config.SpriteName = "circle"
 Config.SpriteQuiet = { w = 0.007, h = 0.012, r = 255, g = 255, b = 255, a = 90 }
 Config.SpriteAimed = { w = 0.010, h = 0.017, r = 255, g = 215, b = 0, a = 220 }
 
+-- World sprite size by distance: full size near interact range, smaller farther out
+Config.SpriteScaleNear = 1.0
+Config.SpriteScaleFar = 0.2
+
 -- Default show / interact distances when a registration omits them
 Config.DefaultDistance = 5.0
 Config.DefaultInteractDistance = 2.0
