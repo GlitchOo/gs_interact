@@ -19,7 +19,7 @@ Look-at world interactions for RedM. Register points, models, peds, objects, and
 - **Bone targeting** – attach sprites / aim points to named bones (saddle, hand, boot, etc.)
 - **Per-target meta** – static `meta` or live `getMeta` for labels and callbacks
 - **Conditional options** – `canInteract` gates prompts by distance, state, or job
-- **Flexible handlers** – `onSelect`, client `event`, `serverEvent`, or cross-resource `export`
+- **Flexible handlers** – `onSelect`, `onStart`, client `event`, `serverEvent`, or cross-resource `export`
 - **Auto cleanup** – registrations from a stopped resource are removed automatically
 - **Tunable performance** – scan interval and idle / far / active sleeps in `config.lua`
 
@@ -149,6 +149,9 @@ Each option:
 | `distance` | `number?` | Override interact distance for this option only |
 | `canInteract` | `fun\|boolean?` | If `false` / returns `false`, option is hidden from the active group |
 | `onSelect` | `fun?` | `(data) -> void` preferred client handler |
+| `onStart` | `fun?` | `(data) -> void` when the player begins press / hold / mash |
+| `startEvent` | `string?` | `TriggerEvent(startEvent, data)` when interaction begins |
+| `startServerEvent` | `string?` | `TriggerServerEvent(startServerEvent, data)` when interaction begins |
 | `onFail` | `fun?` | `(data) -> void` mash decay failure (`mash` + `mashDecay` required) |
 | `failEvent` | `string?` | `TriggerEvent(failEvent, data)` on mash decay failure |
 | `failServerEvent` | `string?` | `TriggerServerEvent(failServerEvent, data)` on mash decay failure |
@@ -158,9 +161,12 @@ Each option:
 | `SpriteDict` / `SpriteName` | `string?` | Aimed sprite override while this option is the first valid one |
 
 Handler priority: `onSelect` -> `export` -> `event` -> `serverEvent`.  
+Start priority: `onStart` -> `startEvent` -> `startServerEvent`.  
 Fail priority: `onFail` -> `failEvent` -> `failServerEvent`.
 
 Prompt mode: omit both for a normal press (`standard`). Set `hold` or `mash` per option. If both are set, `hold` wins. Optional `mashDecay` drains progress while not mashing. Add `onFail` (or fail events) with `mashDecay` to enable can-fail mash and receive a decay failure callback (`data.failed = true`).
+
+`onStart` fires once when the player begins an attempt: hold mode when hold starts running, mash / standard on the first control press. Releasing a hold and pressing again fires `onStart` again.
 
 ### Select payload (`data`)
 
@@ -221,7 +227,7 @@ Edit `config.lua`:
 ## License / author
 
 **Author:** \_G\[S\]cripts  
-**Version:** 1.0.1  
+**Version:** 1.0.2  
 **License:** [PolyForm Noncommercial License 1.0.0](LICENSE)
 
 Noncommercial use only. See [LICENSE](LICENSE) for full terms.

@@ -355,6 +355,9 @@ exports.gs_interact:addPoint({
             mash = 12, -- mash 12 times
             mashDecay = 0.05, -- progress drains while idle
             mashStart = 0.0, -- optional start fill 0.0-1.0 (can-fail)
+            onStart = function(data)
+                print('Started cracking', data.registrationId)
+            end,
             onSelect = function(data)
                 print('Cracked', data.registrationId)
             end,
@@ -368,6 +371,9 @@ exports.gs_interact:addPoint({
             label = 'Force open',
             control = 0x760A9C6F, -- G / INPUT_INTERACT_OPTION1
             hold = 2000, -- hold for 2000 ms
+            onStart = function()
+                print('Started forcing')
+            end,
             onSelect = function()
                 print('Forced open')
             end,
@@ -400,6 +406,7 @@ exports.gs_interact:addPoint({
 - `hold = <ms>` or `hold = true`
 - `mash = <count>` or `mash = true`
 - `mashDecay = <number>` optional on mash options; progress decreases while not mashing (try `0.02` to `0.1`)
+- `onStart` / `startEvent` / `startServerEvent` run once when the attempt begins (hold starts, or first mash / press)
 - `onFail` / `failEvent` / `failServerEvent` with `mashDecay` enables can-fail mash and runs when the bar empties (`data.failed = true`)
 - `mashStart` optional `0.0`-`1.0` fill when can-fail is active
 - If both `hold` and `mash` are set on one option, `hold` wins

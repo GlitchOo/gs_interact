@@ -265,6 +265,25 @@ local function FireOptionFail(option, data)
     end
 end
 
+---Fire interaction start handlers (`onStart` -> `startEvent` -> `startServerEvent`).
+---@param option table
+---@param data table
+local function FireOptionStart(option, data)
+    if option.onStart then
+        option.onStart(data)
+        return
+    end
+
+    if option.startEvent then
+        TriggerEvent(option.startEvent, data)
+        return
+    end
+
+    if option.startServerEvent then
+        TriggerServerEvent(option.startServerEvent, data)
+    end
+end
+
 local function ClearOptionPrompts()
     for i = 1, #ActivePrompts do
         local p = ActivePrompts[i]
@@ -282,6 +301,49 @@ local function OptionHasFailHandler(option)
     return IsCallable(option.onFail)
         or type(option.failEvent) == "string"
         or type(option.failServerEvent) == "string"
+end
+
+---@param option table
+---@return boolean
+local function OptionHasStartHandler(option)
+    return IsCallable(option.onStart)
+        or type(option.startEvent) == "string"
+        or type(option.startServerEvent) == "string"
+end
+
+---Detect the rising edge of a press / hold / mash attempt and fire onStart once.
+---@param slot { handle: number, mode: string, option: table, started?: boolean, visible?: boolean }
+---@param target table
+local function TryFireOptionStart(slot, target)
+    if not slot.visible then
+        slot.started = false
+        return
+    end
+
+    if slot.mode == "hold" then
+        local running = PromptIsHoldModeRunning(slot.handle)
+        if not running then
+            slot.started = false
+            return
+        end
+        if slot.started then
+            return
+        end
+    else
+        -- mash / standard: first JustPressed of this attempt
+        if slot.started or not PromptIsJustPressed(slot.handle) then
+            return
+        end
+    end
+
+    if not OptionHasStartHandler(slot.option) then
+        slot.started = true
+        return
+    end
+
+    slot.started = true
+    local data = BuildSelectData(target, slot.option, target.dist)
+    FireOptionStart(slot.option, data)
 end
 
 ---Resolve per-option UI prompt mode. hold wins over mash if both are set.
@@ -439,6 +501,9 @@ local function SyncOptionPrompts(options, meta, target)
             distance = option.distance,
             canInteract = option.canInteract,
             onSelect = option.onSelect,
+            onStart = option.onStart,
+            startEvent = option.startEvent,
+            startServerEvent = option.startServerEvent,
             onFail = option.onFail,
             failEvent = option.failEvent,
             failServerEvent = option.failServerEvent,
@@ -481,6 +546,7 @@ local function SyncOptionPrompts(options, meta, target)
             mode = option.mode,
             mashCanFail = option.mashCanFail,
             visible = allowed,
+            started = false,
         }
     end
 end
@@ -950,6 +1016,8 @@ CreateThread(function()
                 for i = 1, #ActivePrompts do
                     local slot = ActivePrompts[i]
                     if slot.visible then
+                        TryFireOptionStart(slot, bestPoint)
+
                         if IsOptionPromptCompleted(slot) then
                             local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
                             FireOption(slot.option, data)
@@ -966,6 +1034,8 @@ CreateThread(function()
                             Wait(500)
                             break
                         end
+                    else
+                        slot.started = false
                     end
                 end
             else
