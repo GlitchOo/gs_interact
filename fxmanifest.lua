@@ -6,7 +6,7 @@ rdr3_warning "I acknowledge that this is a prerelease build of RedM, and I am aw
 name "gs_interact"
 author "_G[S]cripts"
 description "Look-at world interact points with multi-option prompts"
-version "1.0.0"
+version "1.0.1"
 license "PolyForm-Noncommercial-1.0.0"
 
 shared_scripts {

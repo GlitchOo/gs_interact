@@ -220,7 +220,7 @@ Edit `config.lua`:
 ## License / author
 
 **Author:** \_G\[S\]cripts  
-**Version:** 1.0.0  
+**Version:** 1.0.1  
 **License:** [PolyForm Noncommercial License 1.0.0](LICENSE)
 
 Noncommercial use only. See [LICENSE](LICENSE) for full terms.
