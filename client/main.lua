@@ -170,9 +170,32 @@ local function ResolveSprites(entry, option)
     return dict, name, quiet, aimed
 end
 
+---True for Lua functions and CFX cross-resource callbacks (export refs are tables).
+---@param value any
+---@return boolean
+local function IsCallable(value)
+    local t = type(value)
+    return t == "function" or t == "table"
+end
+
+---Option is usable when canInteract is omitted, true, or a callback that returns true.
+---@param option table
+---@param entity? number
+---@param distance number
+---@param coords vector3
+---@return boolean
 local function OptionCanInteract(option, entity, distance, coords)
-    if not option.canInteract then return true end
-    local ok, result = pcall(option.canInteract, entity, distance, coords, option.name)
+    local gate = option.canInteract
+    if gate == nil then
+        return true
+    end
+    if type(gate) == "boolean" then
+        return gate
+    end
+    if not IsCallable(gate) then
+        return true
+    end
+    local ok, result = pcall(gate, entity, distance, coords, option.name)
     return ok and result and true or false
 end
 
@@ -256,7 +279,7 @@ end
 ---@param option table
 ---@return boolean
 local function OptionHasFailHandler(option)
-    return type(option.onFail) == "function"
+    return IsCallable(option.onFail)
         or type(option.failEvent) == "string"
         or type(option.failServerEvent) == "string"
 end
@@ -396,7 +419,7 @@ local function IsOptionPromptFailed(slot)
     return PromptHasMashModeFailed(slot.handle)
 end
 
-local function SyncOptionPrompts(options, meta)
+local function SyncOptionPrompts(options, meta, target)
     local displayOptions = {}
     for i = 1, #options do
         local option = options[i]
@@ -435,22 +458,29 @@ local function SyncOptionPrompts(options, meta)
 
     for i = 1, #displayOptions do
         local option = displayOptions[i]
+        local rawOption = options[i]
         local labelText = tostring(option.label or "Interact")
+        local allowed = true
+        if target then
+            allowed = OptionCanInteract(rawOption, target.entity, target.dist, target.coords)
+        end
         local handle = PromptRegisterBegin()
         PromptSetControlAction(handle, option.control or Config.InteractKey)
         PromptSetText(handle, CreateVarString(10, "LITERAL_STRING", labelText))
-        PromptSetEnabled(handle, true)
-        PromptSetVisible(handle, true)
+        PromptSetEnabled(handle, allowed)
+        PromptSetVisible(handle, allowed)
         ApplyPromptMode(handle, option.mode, option.modeValue, option.mashDecay, option.mashCanFail, option.mashStart)
-        -- tabIndex 0 keeps all options on one prompt page
-        PromptSetGroup(handle, PromptGroup, 0)
+        if allowed then
+            PromptSetGroup(handle, PromptGroup, 0)
+        end
         PromptRegisterEnd(handle)
         ActivePrompts[#ActivePrompts + 1] = {
             handle = handle,
-            option = options[i],
+            option = rawOption,
             label = labelText,
             mode = option.mode,
             mashCanFail = option.mashCanFail,
+            visible = allowed,
         }
     end
 end
@@ -627,21 +657,55 @@ local function RefreshNearbyEntityCoords()
     end
 end
 
-local function GetValidOptions(target)
+local function GetInRangeOptions(target)
     local entry = target.entry
     local options = entry.options or {}
-    local valid = {}
+    local inRange = {}
     local baseInteract = entry.interactDistance or Config.DefaultInteractDistance
 
     for i = 1, #options do
         local option = options[i]
         local optDist = option.distance or baseInteract
-        if target.dist <= optDist and OptionCanInteract(option, target.entity, target.dist, target.coords) then
+        if target.dist <= optDist then
+            inRange[#inRange + 1] = option
+        end
+    end
+
+    return inRange
+end
+
+---@param target table
+---@param inRange? table[]
+---@return table[]
+local function GetValidOptions(target, inRange)
+    inRange = inRange or GetInRangeOptions(target)
+    local valid = {}
+
+    for i = 1, #inRange do
+        local option = inRange[i]
+        if OptionCanInteract(option, target.entity, target.dist, target.coords) then
             valid[#valid + 1] = option
         end
     end
 
     return valid
+end
+
+---Toggle prompt membership after PromptSetActiveGroupThisFrame (order matters on RedM).
+---@param target table
+local function UpdateOptionPromptVisibility(target)
+    for i = 1, #ActivePrompts do
+        local slot = ActivePrompts[i]
+        local allowed = OptionCanInteract(slot.option, target.entity, target.dist, target.coords)
+        PromptSetVisible(slot.handle, allowed)
+        PromptSetEnabled(slot.handle, allowed)
+        slot.visible = allowed
+        if allowed then
+            PromptSetGroup(slot.handle, PromptGroup, 0)
+        else
+            PromptRemoveGroup(slot.handle, PromptGroup)
+        end
+    end
 end
 
 GsInteract = GsInteract or {}
@@ -806,7 +870,8 @@ CreateThread(function()
                 sleep = activeSleep
             end
 
-            local validOptions = bestPoint and GetValidOptions(bestPoint) or {}
+            local inRangeOptions = bestPoint and GetInRangeOptions(bestPoint) or {}
+            local validOptions = bestPoint and GetValidOptions(bestPoint, inRangeOptions) or {}
             local canInteract = bestPoint and #validOptions > 0
 
             if canInteract then
@@ -878,28 +943,29 @@ CreateThread(function()
             end
 
             if canInteract then
-                SyncOptionPrompts(validOptions, bestPoint.meta)
-                -- tabAmount 1 = single page with all options
+                SyncOptionPrompts(inRangeOptions, bestPoint.meta, bestPoint)
                 PromptSetActiveGroupThisFrame(PromptGroup, GetPromptGroupLabel(), 1, 0, 0, 0)
+                UpdateOptionPromptVisibility(bestPoint)
 
                 for i = 1, #ActivePrompts do
                     local slot = ActivePrompts[i]
-                    if IsOptionPromptCompleted(slot) then
-                        local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
-                        FireOption(slot.option, data)
-                        -- Rebuild prompts so hold/mash progress does not re-fire
-                        ClearOptionPrompts()
-                        Wait(slot.mode == "standard" and 250 or 500)
-                        break
-                    end
+                    if slot.visible then
+                        if IsOptionPromptCompleted(slot) then
+                            local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
+                            FireOption(slot.option, data)
+                            ClearOptionPrompts()
+                            Wait(slot.mode == "standard" and 250 or 500)
+                            break
+                        end
 
-                    if IsOptionPromptFailed(slot) then
-                        local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
-                        data.failed = true
-                        FireOptionFail(slot.option, data)
-                        ClearOptionPrompts()
-                        Wait(500)
-                        break
+                        if IsOptionPromptFailed(slot) then
+                            local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
+                            data.failed = true
+                            FireOptionFail(slot.option, data)
+                            ClearOptionPrompts()
+                            Wait(500)
+                            break
+                        end
                     end
                 end
             else

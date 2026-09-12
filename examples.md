@@ -329,7 +329,8 @@ exports.gs_interact:addPoint({
 ```
 
 `canInteract` signature: `(entity, distance, coords, optionName) -> boolean`.  
-Errors inside `canInteract` are treated as `false`.
+Errors inside `canInteract` are treated as `false`.  
+Supports booleans and callbacks (including cross-resource function refs). When false, the option is removed from the active prompt group each frame.
 
 Omitting `control` uses `Config.InteractKey` (Space). That is fine for a single option; with several options, prefer unique controls.
 

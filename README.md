@@ -73,7 +73,7 @@ When your resource stops, call `remove` for ids you own, or rely on automatic cl
 2. On-screen targets draw a quiet sprite at their world (or bone) position.
 3. Sprite size lerps by player distance: `Config.SpriteScaleFar` at show range (`distance`), `Config.SpriteScaleNear` at interact range (`interactDistance`).
 4. The target closest to screen center inside `Config.AimScreenRadius` becomes the aimed target.
-5. If you are within `interactDistance` (or a per-option `distance`) and `canInteract` passes, a native UI prompt group appears with every valid option on one page (`Config.PromptGroupName`).
+5. If you are within `interactDistance` (or a per-option `distance`) and at least one option passes `canInteract`, a native UI prompt group appears. Options that fail `canInteract` are hidden with `PromptSetVisible` / `PromptSetEnabled` / `PromptRemoveGroup` after the group is activated.
 6. Pressing an option’s control fires that option’s handler.
 
 Mount / vehicle: set `requireOnFoot = true` to hide the target while the player is not on foot.
@@ -147,7 +147,7 @@ Each option:
 | `mashDecay` | `number?` | Optional mash progress decay speed. Higher = drains faster |
 | `mashStart` | `number?` | Start progress `0.0`-`1.0` when using decay + fail (default `Config.DefaultMashStart`) |
 | `distance` | `number?` | Override interact distance for this option only |
-| `canInteract` | `fun?` | `(entity, distance, coords, name) -> boolean` |
+| `canInteract` | `fun\|boolean?` | If `false` / returns `false`, option is hidden from the active group |
 | `onSelect` | `fun?` | `(data) -> void` preferred client handler |
 | `onFail` | `fun?` | `(data) -> void` mash decay failure (`mash` + `mashDecay` required) |
 | `failEvent` | `string?` | `TriggerEvent(failEvent, data)` on mash decay failure |
