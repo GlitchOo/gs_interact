@@ -234,11 +234,56 @@ local function ClearOptionPrompts()
     ActivePromptKey = nil
 end
 
+---Resolve per-option UI prompt mode. hold wins over mash if both are set.
+---@param option table
+---@return string mode `standard` | `hold` | `mash`
+---@return number? value Hold ms or mash count
+---@return number? mashDecay Resistance decrease speed when mashing
+local function ResolveOptionPromptMode(option)
+    if option.hold ~= nil and option.hold ~= false then
+        local ms = option.hold
+        if ms == true then
+            ms = Config.DefaultHoldTime or 1500
+        end
+        if type(ms) ~= "number" or ms < 0 then
+            ms = Config.DefaultHoldTime or 1500
+        end
+        return "hold", ms, nil
+    end
+
+    if option.mash ~= nil and option.mash ~= false then
+        local count = option.mash
+        if count == true then
+            count = Config.DefaultMashCount or 10
+        end
+        if type(count) ~= "number" or count < 1 then
+            count = Config.DefaultMashCount or 10
+        end
+
+        local decay = nil
+        if type(option.mashDecay) == "number" and option.mashDecay > 0.0 then
+            decay = option.mashDecay
+        end
+
+        return "mash", math.floor(count), decay
+    end
+
+    return "standard", nil, nil
+end
+
 local function OptionPromptKey(options)
     local parts = {}
     for i = 1, #options do
         local o = options[i]
-        parts[#parts + 1] = ("%s:%s:%s"):format(o.name or i, o.label or "", o.control or Config.InteractKey)
+        local mode, value, mashDecay = ResolveOptionPromptMode(o)
+        parts[#parts + 1] = ("%s:%s:%s:%s:%s:%s"):format(
+            o.name or i,
+            o.label or "",
+            o.control or Config.InteractKey,
+            mode,
+            value or 0,
+            mashDecay or 0
+        )
     end
     return table.concat(parts, "|")
 end
@@ -258,15 +303,56 @@ local function ResolveOptionLabel(option, meta)
     return "Interact"
 end
 
+---Apply standard / hold / mash mode to a registered prompt.
+---@param handle number
+---@param mode string
+---@param value? number
+---@param mashDecay? number
+local function ApplyPromptMode(handle, mode, value, mashDecay)
+    if mode == "hold" then
+        PromptSetHoldMode(handle, value or Config.DefaultHoldTime or 1500)
+        return
+    end
+    if mode == "mash" then
+        local count = value or Config.DefaultMashCount or 10
+        if mashDecay then
+            -- p2 = decreaseSpeed (progress decay while not mashing), p3 = startProgress
+            PromptSetMashWithResistanceMode(handle, count, mashDecay, 0.0)
+        else
+            PromptSetMashMode(handle, count)
+        end
+        return
+    end
+    PromptSetStandardMode(handle, true)
+end
+
+---@param slot { handle: number, mode: string }
+---@return boolean
+local function IsOptionPromptCompleted(slot)
+    if slot.mode == "hold" then
+        return PromptHasHoldModeCompleted(slot.handle)
+    end
+    if slot.mode == "mash" then
+        return PromptHasMashModeCompleted(slot.handle)
+    end
+    return Citizen.InvokeNative(0xC92AC953F0A982AE, slot.handle)
+end
+
 local function SyncOptionPrompts(options, meta)
     local displayOptions = {}
     for i = 1, #options do
         local option = options[i]
         local label = ResolveOptionLabel(option, meta)
+        local mode, modeValue, mashDecay = ResolveOptionPromptMode(option)
         displayOptions[i] = {
             name = option.name,
             label = label,
             control = option.control,
+            hold = option.hold,
+            mash = option.mash,
+            mashDecay = mashDecay,
+            mode = mode,
+            modeValue = modeValue,
             distance = option.distance,
             canInteract = option.canInteract,
             onSelect = option.onSelect,
@@ -292,7 +378,7 @@ local function SyncOptionPrompts(options, meta)
         PromptSetText(handle, CreateVarString(10, "LITERAL_STRING", labelText))
         PromptSetEnabled(handle, true)
         PromptSetVisible(handle, true)
-        PromptSetStandardMode(handle, true)
+        ApplyPromptMode(handle, option.mode, option.modeValue, option.mashDecay)
         -- tabIndex 0 keeps all options on one prompt page
         PromptSetGroup(handle, PromptGroup, 0)
         PromptRegisterEnd(handle)
@@ -300,6 +386,7 @@ local function SyncOptionPrompts(options, meta)
             handle = handle,
             option = options[i],
             label = labelText,
+            mode = option.mode,
         }
     end
 end
@@ -733,10 +820,12 @@ CreateThread(function()
 
                 for i = 1, #ActivePrompts do
                     local slot = ActivePrompts[i]
-                    if Citizen.InvokeNative(0xC92AC953F0A982AE, slot.handle) then
+                    if IsOptionPromptCompleted(slot) then
                         local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
                         FireOption(slot.option, data)
-                        Wait(250)
+                        -- Rebuild prompts so hold/mash progress does not re-fire
+                        ClearOptionPrompts()
+                        Wait(slot.mode == "standard" and 250 or 500)
                         break
                     end
                 end

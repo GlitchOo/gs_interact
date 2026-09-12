@@ -13,6 +13,7 @@ Look-at world interactions for RedM. Register points, models, peds, objects, and
 - **Look-at aiming** – center-screen aim with world sprites that highlight when targeted
 - **Distance-scaled sprites** – markers grow from far size at `distance` to full size at `interactDistance`
 - **Grouped UI prompts** – all valid options share one native prompt group (single page)
+- **Hold / mash options** – per-option press, hold, or mash UI prompts
 - **Points, models, and entities** – fixed coords, model hashes, or specific entity handles
 - **Peds, objects, and wagons** – typed helpers so scans stay in the right entity bucket
 - **Bone targeting** – attach sprites / aim points to named bones (saddle, hand, boot, etc.)
@@ -141,6 +142,9 @@ Each option:
 | `name` | `string` | Stable option id (used by `removeOption`) |
 | `label` | `string` | Prompt text (can be overridden by `meta.name` / `meta.label`) |
 | `control` | `number?` | Control hash (default `Config.InteractKey`, Space). Use distinct keys for multi-option targets |
+| `hold` | `number\|true?` | Hold mode: ms to complete, or `true` for `Config.DefaultHoldTime` |
+| `mash` | `number\|true?` | Mash mode: presses to complete, or `true` for `Config.DefaultMashCount` |
+| `mashDecay` | `number?` | Optional mash progress decay speed (uses resistance mash). Higher = drains faster |
 | `distance` | `number?` | Override interact distance for this option only |
 | `canInteract` | `fun?` | `(entity, distance, coords, name) -> boolean` |
 | `onSelect` | `fun?` | `(data) -> void` preferred client handler |
@@ -150,6 +154,8 @@ Each option:
 | `SpriteDict` / `SpriteName` | `string?` | Aimed sprite override while this option is the first valid one |
 
 Handler priority: `onSelect` -> `export` -> `event` -> `serverEvent`.
+
+Prompt mode: omit both for a normal press (`standard`). Set `hold` or `mash` per option. If both are set, `hold` wins. Optional `mashDecay` on mash options drains progress while not mashing.
 
 ### Select payload (`data`)
 
@@ -177,6 +183,8 @@ Edit `config.lua`:
 |-----|---------|-------|
 | `InteractKey` | `0xD9D0E1C0` | Space |
 | `PromptGroupName` | `"Interact"` | Prompt group label |
+| `DefaultHoldTime` | `1500` | Used when `option.hold == true` |
+| `DefaultMashCount` | `10` | Used when `option.mash == true` |
 | `AimScreenRadius` | `0.10` | Screen-space aim radius |
 | `MaxNearbySprites` | `25` | Cap drawn nearby markers |
 | `ShowCenterDot` | `true` | Center aim cue |

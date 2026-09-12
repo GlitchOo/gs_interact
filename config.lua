@@ -4,6 +4,10 @@ Config = {}
 Config.InteractKey = 0xD9D0E1C0
 Config.PromptGroupName = "Interact"
 
+-- Defaults when option.hold / option.mash is true (or invalid)
+Config.DefaultHoldTime = 1500
+Config.DefaultMashCount = 10
+
 Config.AimScreenRadius = 0.10
 Config.MaxNearbySprites = 25
 

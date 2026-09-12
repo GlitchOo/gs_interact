@@ -333,7 +333,64 @@ Errors inside `canInteract` are treated as `false`.
 
 Omitting `control` uses `Config.InteractKey` (Space). That is fine for a single option; with several options, prefer unique controls.
 
+### Hold and mash prompts
+
+Default options use a normal press. Set `hold` or `mash` on an option to change the UI prompt mode:
+
+```lua
+exports.gs_interact:addPoint({
+    id = 'example:safe',
+    coords = vector3(120.0, 210.0, 50.0),
+    distance = 5.0,
+    interactDistance = 1.5,
+    options = {
+        {
+            name = 'crack',
+            label = 'Crack safe',
+            mash = 12, -- mash 12 times
+            mashDecay = 2.0, -- optional: progress drains while idle (resistance mash)
+            onSelect = function(data)
+                print('Cracked', data.registrationId)
+            end,
+        },
+        {
+            name = 'force',
+            label = 'Force open',
+            hold = 2000, -- hold for 2000 ms
+            onSelect = function()
+                print('Forced open')
+            end,
+        },
+        {
+            name = 'quick',
+            label = 'Quick peek',
+            -- no hold/mash: standard press
+            onSelect = function() end,
+        },
+        {
+            name = 'default_hold',
+            label = 'Hold (default ms)',
+            hold = true, -- Config.DefaultHoldTime
+            onSelect = function() end,
+        },
+        {
+            name = 'default_mash',
+            label = 'Mash (default count)',
+            mash = true, -- Config.DefaultMashCount
+            onSelect = function() end,
+        },
+    },
+})
+```
+
+- `hold = <ms>` or `hold = true`
+- `mash = <count>` or `mash = true`
+- `mashDecay = <number>` optional on mash options; progress decreases while not mashing (try `0.02` to `0.1`)
+- If both `hold` and `mash` are set on one option, `hold` wins
+- Mix modes freely across options in the same group
+
 ---
+
 
 ## 10. Events, server events, and exports
 
