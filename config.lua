@@ -7,6 +7,8 @@ Config.PromptGroupName = "Interact"
 -- Defaults when option.hold / option.mash is true (or invalid)
 Config.DefaultHoldTime = 1500
 Config.DefaultMashCount = 10
+-- Start progress (0.0-1.0) for mashDecay + onFail can-fail prompts
+Config.DefaultMashStart = 0.0
 
 Config.AimScreenRadius = 0.10
 Config.MaxNearbySprites = 25

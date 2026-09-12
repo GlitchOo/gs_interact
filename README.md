@@ -144,18 +144,23 @@ Each option:
 | `control` | `number?` | Control hash (default `Config.InteractKey`, Space). Use distinct keys for multi-option targets |
 | `hold` | `number\|true?` | Hold mode: ms to complete, or `true` for `Config.DefaultHoldTime` |
 | `mash` | `number\|true?` | Mash mode: presses to complete, or `true` for `Config.DefaultMashCount` |
-| `mashDecay` | `number?` | Optional mash progress decay speed (uses resistance mash). Higher = drains faster |
+| `mashDecay` | `number?` | Optional mash progress decay speed. Higher = drains faster |
+| `mashStart` | `number?` | Start progress `0.0`-`1.0` when using decay + fail (default `Config.DefaultMashStart`) |
 | `distance` | `number?` | Override interact distance for this option only |
 | `canInteract` | `fun?` | `(entity, distance, coords, name) -> boolean` |
 | `onSelect` | `fun?` | `(data) -> void` preferred client handler |
+| `onFail` | `fun?` | `(data) -> void` mash decay failure (`mash` + `mashDecay` required) |
+| `failEvent` | `string?` | `TriggerEvent(failEvent, data)` on mash decay failure |
+| `failServerEvent` | `string?` | `TriggerServerEvent(failServerEvent, data)` on mash decay failure |
 | `event` | `string?` | `TriggerEvent(event, data)` |
 | `serverEvent` | `string?` | `TriggerServerEvent(serverEvent, data)` |
 | `export` | `string?` | `"resource.exportName"` called with `data` |
 | `SpriteDict` / `SpriteName` | `string?` | Aimed sprite override while this option is the first valid one |
 
-Handler priority: `onSelect` -> `export` -> `event` -> `serverEvent`.
+Handler priority: `onSelect` -> `export` -> `event` -> `serverEvent`.  
+Fail priority: `onFail` -> `failEvent` -> `failServerEvent`.
 
-Prompt mode: omit both for a normal press (`standard`). Set `hold` or `mash` per option. If both are set, `hold` wins. Optional `mashDecay` on mash options drains progress while not mashing.
+Prompt mode: omit both for a normal press (`standard`). Set `hold` or `mash` per option. If both are set, `hold` wins. Optional `mashDecay` drains progress while not mashing. Add `onFail` (or fail events) with `mashDecay` to enable can-fail mash and receive a decay failure callback (`data.failed = true`).
 
 ### Select payload (`data`)
 
@@ -185,6 +190,7 @@ Edit `config.lua`:
 | `PromptGroupName` | `"Interact"` | Prompt group label |
 | `DefaultHoldTime` | `1500` | Used when `option.hold == true` |
 | `DefaultMashCount` | `10` | Used when `option.mash == true` |
+| `DefaultMashStart` | `0.0` | Start progress for mashDecay + fail handlers |
 | `AimScreenRadius` | `0.10` | Screen-space aim radius |
 | `MaxNearbySprites` | `25` | Cap drawn nearby markers |
 | `ShowCenterDot` | `true` | Center aim cue |

@@ -348,9 +348,14 @@ exports.gs_interact:addPoint({
             name = 'crack',
             label = 'Crack safe',
             mash = 12, -- mash 12 times
-            mashDecay = 2.0, -- optional: progress drains while idle (resistance mash)
+            mashDecay = 0.05, -- progress drains while idle
+            mashStart = 0.0, -- optional start fill 0.0-1.0 (can-fail)
             onSelect = function(data)
                 print('Cracked', data.registrationId)
+            end,
+            -- Enables can-fail mash; called when decay empties the bar
+            onFail = function(data)
+                print('Failed to crack', data.registrationId, data.failed)
             end,
         },
         {
@@ -386,6 +391,8 @@ exports.gs_interact:addPoint({
 - `hold = <ms>` or `hold = true`
 - `mash = <count>` or `mash = true`
 - `mashDecay = <number>` optional on mash options; progress decreases while not mashing (try `0.02` to `0.1`)
+- `onFail` / `failEvent` / `failServerEvent` with `mashDecay` enables can-fail mash and runs when the bar empties (`data.failed = true`)
+- `mashStart` optional `0.0`-`1.0` fill when can-fail is active
 - If both `hold` and `mash` are set on one option, `hold` wins
 - Mix modes freely across options in the same group
 

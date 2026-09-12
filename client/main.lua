@@ -223,6 +223,25 @@ local function FireOption(option, data)
     end
 end
 
+---Fire mash decay failure handlers (`onFail` -> `failEvent` -> `failServerEvent`).
+---@param option table
+---@param data table
+local function FireOptionFail(option, data)
+    if option.onFail then
+        option.onFail(data)
+        return
+    end
+
+    if option.failEvent then
+        TriggerEvent(option.failEvent, data)
+        return
+    end
+
+    if option.failServerEvent then
+        TriggerServerEvent(option.failServerEvent, data)
+    end
+end
+
 local function ClearOptionPrompts()
     for i = 1, #ActivePrompts do
         local p = ActivePrompts[i]
@@ -234,11 +253,21 @@ local function ClearOptionPrompts()
     ActivePromptKey = nil
 end
 
+---@param option table
+---@return boolean
+local function OptionHasFailHandler(option)
+    return type(option.onFail) == "function"
+        or type(option.failEvent) == "string"
+        or type(option.failServerEvent) == "string"
+end
+
 ---Resolve per-option UI prompt mode. hold wins over mash if both are set.
 ---@param option table
 ---@return string mode `standard` | `hold` | `mash`
 ---@return number? value Hold ms or mash count
 ---@return number? mashDecay Resistance decrease speed when mashing
+---@return boolean mashCanFail Use can-fail resistance mash (needs mashDecay + fail handler)
+---@return number mashStart Start progress 0.0-1.0 for can-fail mash
 local function ResolveOptionPromptMode(option)
     if option.hold ~= nil and option.hold ~= false then
         local ms = option.hold
@@ -248,7 +277,7 @@ local function ResolveOptionPromptMode(option)
         if type(ms) ~= "number" or ms < 0 then
             ms = Config.DefaultHoldTime or 1500
         end
-        return "hold", ms, nil
+        return "hold", ms, nil, false, 0.0
     end
 
     if option.mash ~= nil and option.mash ~= false then
@@ -265,24 +294,38 @@ local function ResolveOptionPromptMode(option)
             decay = option.mashDecay
         end
 
-        return "mash", math.floor(count), decay
+        local canFail = decay ~= nil and OptionHasFailHandler(option)
+        local startProgress = 0.0
+        if canFail then
+            if type(option.mashStart) == "number" then
+                startProgress = option.mashStart
+            else
+                startProgress = Config.DefaultMashStart or 0.0
+            end
+            if startProgress < 0.0 then startProgress = 0.0 end
+            if startProgress > 1.0 then startProgress = 1.0 end
+        end
+
+        return "mash", math.floor(count), decay, canFail, startProgress
     end
 
-    return "standard", nil, nil
+    return "standard", nil, nil, false, 0.0
 end
 
 local function OptionPromptKey(options)
     local parts = {}
     for i = 1, #options do
         local o = options[i]
-        local mode, value, mashDecay = ResolveOptionPromptMode(o)
-        parts[#parts + 1] = ("%s:%s:%s:%s:%s:%s"):format(
+        local mode, value, mashDecay, mashCanFail, mashStart = ResolveOptionPromptMode(o)
+        parts[#parts + 1] = ("%s:%s:%s:%s:%s:%s:%s:%s"):format(
             o.name or i,
             o.label or "",
             o.control or Config.InteractKey,
             mode,
             value or 0,
-            mashDecay or 0
+            mashDecay or 0,
+            mashCanFail and 1 or 0,
+            mashStart or 0
         )
     end
     return table.concat(parts, "|")
@@ -308,7 +351,9 @@ end
 ---@param mode string
 ---@param value? number
 ---@param mashDecay? number
-local function ApplyPromptMode(handle, mode, value, mashDecay)
+---@param mashCanFail? boolean
+---@param mashStart? number
+local function ApplyPromptMode(handle, mode, value, mashDecay, mashCanFail, mashStart)
     if mode == "hold" then
         PromptSetHoldMode(handle, value or Config.DefaultHoldTime or 1500)
         return
@@ -316,8 +361,12 @@ local function ApplyPromptMode(handle, mode, value, mashDecay)
     if mode == "mash" then
         local count = value or Config.DefaultMashCount or 10
         if mashDecay then
-            -- p2 = decreaseSpeed (progress decay while not mashing), p3 = startProgress
-            PromptSetMashWithResistanceMode(handle, count, mashDecay, 0.0)
+            if mashCanFail then
+                -- decreaseSpeed drains progress; startProgress is 0.0-1.0
+                PromptSetMashWithResistanceCanFailMode(handle, count, mashDecay, mashStart or 0.0)
+            else
+                PromptSetMashWithResistanceMode(handle, count, mashDecay, 0.0)
+            end
         else
             PromptSetMashMode(handle, count)
         end
@@ -326,7 +375,7 @@ local function ApplyPromptMode(handle, mode, value, mashDecay)
     PromptSetStandardMode(handle, true)
 end
 
----@param slot { handle: number, mode: string }
+---@param slot { handle: number, mode: string, mashCanFail?: boolean }
 ---@return boolean
 local function IsOptionPromptCompleted(slot)
     if slot.mode == "hold" then
@@ -338,12 +387,21 @@ local function IsOptionPromptCompleted(slot)
     return Citizen.InvokeNative(0xC92AC953F0A982AE, slot.handle)
 end
 
+---@param slot { handle: number, mode: string, mashCanFail?: boolean }
+---@return boolean
+local function IsOptionPromptFailed(slot)
+    if slot.mode ~= "mash" or not slot.mashCanFail then
+        return false
+    end
+    return PromptHasMashModeFailed(slot.handle)
+end
+
 local function SyncOptionPrompts(options, meta)
     local displayOptions = {}
     for i = 1, #options do
         local option = options[i]
         local label = ResolveOptionLabel(option, meta)
-        local mode, modeValue, mashDecay = ResolveOptionPromptMode(option)
+        local mode, modeValue, mashDecay, mashCanFail, mashStart = ResolveOptionPromptMode(option)
         displayOptions[i] = {
             name = option.name,
             label = label,
@@ -351,11 +409,16 @@ local function SyncOptionPrompts(options, meta)
             hold = option.hold,
             mash = option.mash,
             mashDecay = mashDecay,
+            mashCanFail = mashCanFail,
+            mashStart = mashStart,
             mode = mode,
             modeValue = modeValue,
             distance = option.distance,
             canInteract = option.canInteract,
             onSelect = option.onSelect,
+            onFail = option.onFail,
+            failEvent = option.failEvent,
+            failServerEvent = option.failServerEvent,
             export = option.export,
             event = option.event,
             serverEvent = option.serverEvent,
@@ -378,7 +441,7 @@ local function SyncOptionPrompts(options, meta)
         PromptSetText(handle, CreateVarString(10, "LITERAL_STRING", labelText))
         PromptSetEnabled(handle, true)
         PromptSetVisible(handle, true)
-        ApplyPromptMode(handle, option.mode, option.modeValue, option.mashDecay)
+        ApplyPromptMode(handle, option.mode, option.modeValue, option.mashDecay, option.mashCanFail, option.mashStart)
         -- tabIndex 0 keeps all options on one prompt page
         PromptSetGroup(handle, PromptGroup, 0)
         PromptRegisterEnd(handle)
@@ -387,6 +450,7 @@ local function SyncOptionPrompts(options, meta)
             option = options[i],
             label = labelText,
             mode = option.mode,
+            mashCanFail = option.mashCanFail,
         }
     end
 end
@@ -826,6 +890,15 @@ CreateThread(function()
                         -- Rebuild prompts so hold/mash progress does not re-fire
                         ClearOptionPrompts()
                         Wait(slot.mode == "standard" and 250 or 500)
+                        break
+                    end
+
+                    if IsOptionPromptFailed(slot) then
+                        local data = BuildSelectData(bestPoint, slot.option, bestPoint.dist)
+                        data.failed = true
+                        FireOptionFail(slot.option, data)
+                        ClearOptionPrompts()
+                        Wait(500)
                         break
                     end
                 end
