@@ -6,6 +6,9 @@ Examples video: [https://youtu.be/De7f1TCHCM0](https://youtu.be/De7f1TCHCM0)
 
 Ensure `gs_interact` before your resource. All calls below are **client-side**.
 
+When a target has **more than one option**, set a distinct `control` hash on each option. Control hashes and default keys:
+[femga/rdr3_discoveries Controls](https://github.com/femga/rdr3_discoveries/blob/master/Controls/README.md)
+
 ---
 
 ## Table of contents
@@ -44,6 +47,7 @@ exports.gs_interact:addPoint({
         {
             name = 'use',
             label = 'Drink',
+            control = 0xCEFD9220, -- E / INPUT_ENTER
             onSelect = function(data)
                 print('Drank at', data.coords, data.spot)
             end,
@@ -51,6 +55,7 @@ exports.gs_interact:addPoint({
         {
             name = 'inspect',
             label = 'Inspect',
+            control = 0x760A9C6F, -- G / INPUT_INTERACT_OPTION1
             onSelect = function(data)
                 print('Inspected', data.registrationId)
             end,
@@ -175,6 +180,7 @@ exports.gs_interact:addPedEntity({
         {
             name = 'heal',
             label = 'Heal ($5)',
+            control = 0xCEFD9220, -- E / INPUT_ENTER
             canInteract = function()
                 return not IsEntityDead(PlayerPedId())
             end,
@@ -185,6 +191,7 @@ exports.gs_interact:addPedEntity({
         {
             name = 'revive',
             label = 'Revive ($15)',
+            control = 0x760A9C6F, -- G / INPUT_INTERACT_OPTION1
             canInteract = function()
                 return IsEntityDead(PlayerPedId())
             end,
@@ -288,13 +295,9 @@ Wagon bones work the same with `addWagonEntity` (`bodyshell`, `boot`, `seat_psid
 
 ## 9. Multiple options and canInteract
 
-Valid options share one native UI prompt group (single page under `Config.PromptGroupName`). Assign a distinct `control` per option so each prompt can fire independently.
+Valid options share one native UI prompt group (single page under `Config.PromptGroupName`). Give each option its own `control` hash so prompts do not fight the same input. See [Controls](https://github.com/femga/rdr3_discoveries/blob/master/Controls/README.md).
 
 ```lua
--- Example control hashes (pick what fits your resource)
-local KEY_G = 0x760A9C6F
-local KEY_R = 0xE30CD707
-
 exports.gs_interact:addPoint({
     id = 'example:stash',
     coords = vector3(100.0, 200.0, 50.0),
@@ -304,7 +307,7 @@ exports.gs_interact:addPoint({
         {
             name = 'open',
             label = 'Open stash',
-            control = KEY_G,
+            control = 0x760A9C6F, -- G / INPUT_INTERACT_OPTION1
             canInteract = function(_entity, _dist, _coords, _name)
                 return LocalPlayer.state.isLoggedIn == true
             end,
@@ -315,7 +318,7 @@ exports.gs_interact:addPoint({
         {
             name = 'lock',
             label = 'Lock',
-            control = KEY_R,
+            control = 0xE30CD707, -- R / INPUT_RELOAD
             distance = 1.2, -- tighter than registration interactDistance
             canInteract = function()
                 return LocalPlayer.state.isOwner == true
@@ -332,7 +335,7 @@ exports.gs_interact:addPoint({
 Errors inside `canInteract` are treated as `false`.  
 Supports booleans and callbacks (including cross-resource function refs). When false, the option is removed from the active prompt group each frame.
 
-Omitting `control` uses `Config.InteractKey` (Space). That is fine for a single option; with several options, prefer unique controls.
+Omitting `control` uses `Config.InteractKey` (`0xD9D0E1C0`, Space / INPUT_JUMP). Fine for a single option; multi-option targets need unique hashes.
 
 ### Hold and mash prompts
 
@@ -348,6 +351,7 @@ exports.gs_interact:addPoint({
         {
             name = 'crack',
             label = 'Crack safe',
+            control = 0xE30CD707, -- R / INPUT_RELOAD
             mash = 12, -- mash 12 times
             mashDecay = 0.05, -- progress drains while idle
             mashStart = 0.0, -- optional start fill 0.0-1.0 (can-fail)
@@ -362,6 +366,7 @@ exports.gs_interact:addPoint({
         {
             name = 'force',
             label = 'Force open',
+            control = 0x760A9C6F, -- G / INPUT_INTERACT_OPTION1
             hold = 2000, -- hold for 2000 ms
             onSelect = function()
                 print('Forced open')
@@ -370,18 +375,21 @@ exports.gs_interact:addPoint({
         {
             name = 'quick',
             label = 'Quick peek',
+            control = 0xCEFD9220, -- E / INPUT_ENTER
             -- no hold/mash: standard press
             onSelect = function() end,
         },
         {
             name = 'default_hold',
             label = 'Hold (default ms)',
+            control = 0x84543902, -- H / INPUT_INTERACT_OPTION2
             hold = true, -- Config.DefaultHoldTime
             onSelect = function() end,
         },
         {
             name = 'default_mash',
             label = 'Mash (default count)',
+            control = 0xD9D0E1C0, -- Space / INPUT_JUMP
             mash = true, -- Config.DefaultMashCount
             onSelect = function() end,
         },

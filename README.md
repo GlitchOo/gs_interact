@@ -141,7 +141,7 @@ Each option:
 |-------|------|-------------|
 | `name` | `string` | Stable option id (used by `removeOption`) |
 | `label` | `string` | Prompt text (can be overridden by `meta.name` / `meta.label`) |
-| `control` | `number?` | Control hash (default `Config.InteractKey`, Space). Use distinct keys for multi-option targets |
+| `control` | `number?` | Control hash (default `Config.InteractKey`, `0xD9D0E1C0` Space). **Unique per option** when a target has multiple options. Hashes: [rdr3_discoveries Controls](https://github.com/femga/rdr3_discoveries/blob/master/Controls/README.md) |
 | `hold` | `number\|true?` | Hold mode: ms to complete, or `true` for `Config.DefaultHoldTime` |
 | `mash` | `number\|true?` | Mash mode: presses to complete, or `true` for `Config.DefaultMashCount` |
 | `mashDecay` | `number?` | Optional mash progress decay speed. Higher = drains faster |
@@ -209,6 +209,7 @@ Edit `config.lua`:
 ## Best practices
 
 - Namespace ids: `herbs:plants`, `npc_medic:clinic:1`.
+- Multi-option targets: give every option its own `control` hash ([Controls](https://github.com/femga/rdr3_discoveries/blob/master/Controls/README.md)).
 - Prefer `addModels` / `addPedModels` for many world instances of the same prop or ped.
 - Prefer `addEntity` / `addPedEntity` for one spawned handle you own.
 - Use separate registrations (and bones) when one entity needs several aim points.
